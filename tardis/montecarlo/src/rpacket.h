@@ -10,7 +10,6 @@
 #include "randomkit/randomkit.h"
 #include "status.h"
 #include "storage.h"
-#include "cmontecarlo1.h"
 
 #define MISS_DISTANCE 1e99
 #define C 29979245800.0

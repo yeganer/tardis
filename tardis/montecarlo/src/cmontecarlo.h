@@ -9,8 +9,8 @@
 #include <math.h>
 #include "randomkit/randomkit.h"
 #include "rpacket.h"
+#include "storage.h"
 #include "status.h"
-#include "cmontecarlo1.h"
 
 #ifdef WITH_VPACKET_LOGGING
 #define LOG_VPACKETS 1
@@ -23,6 +23,30 @@ typedef void (*montecarlo_event_handler_t) (rpacket_t * packet,
 					    double distance, rk_state *mt_state);
 
 void initialize_random_kit (unsigned long seed);
+
+/** Insert a value in to an array of line frequencies
+ *
+ * @param nu array of line frequencies
+ * @param nu_insert value of nu key
+ * @param number_of_lines number of lines in the line list
+ *
+ * @return index of the next line to the red. If the key value is redder than the reddest line returns number_of_lines.
+ */
+tardis_error_t line_search (const double *nu, double nu_insert,
+       int64_t number_of_lines, int64_t * result);
+
+/** Look for a place to insert a value in an inversely sorted float array.
+ *
+ * @param x an inversely (largest to lowest) sorted float array
+ * @param x_insert a value to insert
+ * @param imin lower bound
+ * @param imax upper bound
+ *
+ * @return index of the next boundary to the left
+ */
+static tardis_error_t
+reverse_binary_search (const double *x, double x_insert,
+        int64_t imin, int64_t imax, int64_t * result);
 
 double rpacket_doppler_factor(const rpacket_t *packet, const storage_model_t *storage);
 
