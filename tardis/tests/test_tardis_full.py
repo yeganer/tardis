@@ -2,7 +2,6 @@ import pytest
 import numpy as np
 import yaml
 import tardis
-import numpy.testing as nptesting
 from astropy import units as u
 import os
 
@@ -44,6 +43,9 @@ class TestSimpleRun():
 
         self.simulation.legacy_run_simulation(self.model)
 
+    @pytest.mark.skipif(
+            True,
+            reason='increment_j_blue_estimator is disabled in this version')
     def test_j_blue_estimators(self):
         j_blue_estimator = np.load(
             data_path('simple_test_j_blue_estimator.npy'))
