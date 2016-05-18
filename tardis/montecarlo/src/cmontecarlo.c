@@ -844,7 +844,7 @@ montecarlo_main_loop(storage_model_t * storage, int64_t virtual_packet_flag, int
       rk_seed (seed + omp_get_thread_num(), &mt_state);
 #pragma omp master
       {
-        fprintf(stderr, "Running with OpenMP - %d threads\n", omp_get_num_threads());
+        // fprintf(stderr, "Running with OpenMP - %d threads\n", omp_get_num_threads());
         print_progress(0, storage->no_of_packets);
       }
 #pragma omp for
