@@ -153,8 +153,7 @@ cdef initialize_storage_model(model, runner, storage_model_t *storage):
     storage.line_lists_tau_sobolevs = <double*> PyArray_DATA(
             runner.line_lists_tau_sobolevs
             )
-    storage.line_lists_j_blues = <double*> PyArray_DATA(
-            runner.j_blue_estimator)
+    storage.line_lists_j_blues = <double*> NULL
 
     storage.line_interaction_id = runner.get_line_interaction_id(
         model.tardis_config.plasma.line_interaction_type)
