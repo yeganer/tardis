@@ -42,28 +42,16 @@ def pytest_unconfigure(config):
     shutil.rmtree(config.option.tempdir)
 
 
-@pytest.mark.hookwrapper
+@pytest.hookimpl(tryfirst=True, hookwrapper=True)
 def pytest_runtest_makereport(item, call):
+    # execute all other hooks to obtain the report object
     outcome = yield
+    rep = outcome.get_result()
 
-    dokuwiki_url = item.config.dokureport.dokuwiki_url
-    # TODO: remove hardcoded name w7 after fixture parametrization
-    plots = glob.glob(os.path.join(item.config.option.tempdir, "w7", "*.png"))
-    report = outcome.get_result()
-    extra = getattr(report, "extra", [])
+    # set an report attribute for each phase of a call, which can
+    # be "setup", "call", "teardown"
 
-    if report.when == "call":
-        for plot in plots:
-            item.config.dokureport.doku_conn.medias.add("plots:{0}_{1}".format(
-                tardis.__githash__[0:7], plot.split("/")[-1]), plot
-            )
-            extra.append(extras.url(
-                "{0}lib/exe/fetch.php?media=plots:{1}_{2}".format(
-                    dokuwiki_url, tardis.__githash__[0:7], plot.split("/")[-1]
-                )
-            ))
-            os.unlink(plot)
-        report.extra = extra
+    setattr(item, "rep_" + rep.when, rep)
 
 
 @pytest.fixture(scope="session")
@@ -140,3 +128,31 @@ def reference(request, reference_datadir):
         luminosity_density_lambda=
             u.Quantity(spectrum['luminosity_density_lambda'], 'erg / (Angstrom s)'))
     return ndarrays
+
+
+@pytest.fixture(scope='function')
+def plot_object(request):
+    class PlotUploader(object):
+
+        def __init__(self):
+            self._plots = list()
+
+        def add(self, plot):
+            """
+            Assume this is given a pyplot figure object
+            """
+            self._plots.append(plot)
+
+        def upload(self):
+            for plot in self._plots:
+                request.node.config.dokureport.doku_conn.medias.add(...)
+
+    plot_obj = PlotUploader()
+
+    def f():
+        item = request.node
+        passed = item.rep_call.passed
+        plot_obj.upload()
+
+    request.add_finalizer(f)
+    return plot_obj
