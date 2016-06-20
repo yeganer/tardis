@@ -1,152 +1,72 @@
+# this contains imports plugins that configure py.test for astropy tests.
+# by importing them here in conftest.py they are discoverable by py.test
+# no matter how it is invoked within the source tree.
+
 from astropy.tests.pytest_plugins import *
+from astropy.tests.pytest_plugins import (
+        pytest_addoption as _pytest_add_option,
+        )
+
+import yaml
+import tardis
+import pytest
+from tardis.atomic import AtomData
+
+
+###
+# Astropy
+###
+
+## Uncomment the following line to treat all DeprecationWarnings as
+## exceptions
+# enable_deprecations_as_exceptions()
+
+## Uncomment and customize the following lines to add/remove entries from
+## the list of packages for which version numbers are displayed when running
+## the tests. Making it pass for KeyError is essential in some cases when
+## the package uses other astropy affiliated packages.
+try:
+    PYTEST_HEADER_MODULES['Numpy'] = 'numpy'
+    PYTEST_HEADER_MODULES['Scipy'] = 'scipy'
+    PYTEST_HEADER_MODULES['Pandas'] = 'pandas'
+    PYTEST_HEADER_MODULES['Astropy'] = 'astropy'
+    PYTEST_HEADER_MODULES['Yaml'] = 'yaml'
+    PYTEST_HEADER_MODULES['Cython'] = 'cython'
+    PYTEST_HEADER_MODULES['h5py'] = 'h5py'
+    PYTEST_HEADER_MODULES['Matplotlib'] = 'matplotlib'
+    PYTEST_HEADER_MODULES['Ipython'] = 'IPython'
+#     del PYTEST_HEADER_MODULES['h5py']
+except (NameError, KeyError):  # NameError is needed to support Astropy < 1.0
+    pass
+
+## Uncomment the following lines to display the version number of the
+## package rather than the version number of Astropy in the top line when
+## running the tests.
+import os
+
+## This is to figure out the affiliated package version, rather than
+## using Astropy's
+try:
+    from .version import version
+except ImportError:
+    version = 'dev'
+
+try:
+    packagename = os.path.basename(os.path.dirname(__file__))
+    TESTED_VERSIONS[packagename] = version
+except NameError:   # Needed to support Astropy <= 1.0.0
+    pass
+
+# -------------------------------------------------------------------------
+# Initialization
+# -------------------------------------------------------------------------
 
 
 def pytest_addoption(parser):
-    parser.addoption("--remote-data", action="store_true",
-                     help="run tests with online data")
-    parser.addoption("--open-files", action="store_true",
-                     help="fail if any test leaves files open")
-
-    parser.addoption("--doctest-plus", action="store_true",
-                     help="enable running doctests with additional "
-                     "features not found in the normal doctest "
-                     "plugin")
-
-    parser.addoption("--doctest-rst", action="store_true",
-                     help="enable running doctests in .rst documentation")
-
-    parser.addini("doctest_plus", "enable running doctests with additional "
-                  "features not found in the normal doctest plugin")
-
-    parser.addini("doctest_norecursedirs",
-                  "like the norecursedirs option but applies only to doctest "
-                  "collection", type="args", default=())
-
-    parser.addini("doctest_rst",
-                  "Run the doctests in the rst documentation",
-                  default=False)
-
-    parser.addoption('--repeat', action='store',
-                     help='Number of times to repeat each test')
-
+    _pytest_add_option(parser)
     parser.addoption("--atomic-dataset", dest='atomic-dataset', default=None,
                      help="filename for atomic dataset")
 
-def pytest_report_header(config):
-
-    stdoutencoding = getattr(sys.stdout, 'encoding') or 'ascii'
-
-    s = "\n"
-    if six.PY2:
-        args = [x.decode('utf-8') for x in config.args]
-    else:
-        args = config.args
-    s += "Running tests in {0}.\n\n".format(" ".join(args))
-
-    from platform import platform
-    plat = platform()
-    if isinstance(plat, bytes):
-        plat = plat.decode(stdoutencoding, 'replace')
-    s += "Platform: {0}\n\n".format(plat)
-    s += "Executable: {0}\n\n".format(sys.executable)
-    s += "Full Python Version: \n{0}\n\n".format(sys.version)
-
-    s += "encodings: sys: {0}, locale: {1}, filesystem: {2}".format(
-        sys.getdefaultencoding(),
-        locale.getpreferredencoding(),
-        sys.getfilesystemencoding())
-    if sys.version_info < (3, 3, 0):
-        s += ", unicode bits: {0}".format(
-            int(math.log(sys.maxunicode, 2)))
-    s += '\n'
-
-    s += "byteorder: {0}\n".format(sys.byteorder)
-    s += "float info: dig: {0.dig}, mant_dig: {0.dig}\n\n".format(
-        sys.float_info)
-
-    import numpy
-    s += "numpy: {0}\n".format(numpy.__version__)
-
-    try:
-        import scipy
-        s += "scipy: {0}\n".format(scipy.__version__)
-    except:
-        s += "scipy: not available\n"
-
-    try:
-        import pandas
-        s += "pandas: {0}\n".format(pandas.__version__)
-    except:
-        s += "pandas: not available\n"
-
-
-    try:
-        import astropy
-    except:
-        s += "astropy: not available\n"
-    else:
-        s += "astropy: {0}\n".format(astropy.__version__)
-
-    try:
-        import yaml
-    except:
-        s += "yaml: not available\n"
-    else:
-        s += "yaml: {0}\n".format(yaml.__version__)
-
-
-    try:
-        import cython
-    except:
-        s += "cython: not available\n"
-    else:
-        s += "cython: {0}\n".format(cython.__version__)
-
-
-
-    try:
-        import h5py.version
-        s += "h5py: {0}\n".format(h5py.version.version)
-    except:
-        s += "h5py: not available\n"
-
-
-    try:
-        import matplotlib
-        s += "matplotlib: {0}\n".format(matplotlib.__version__)
-    except:
-        s += "matplotlib: not available\n"
-
-    try:
-        import IPython
-    except:
-        s += "ipython: not available\n"
-    else:
-        s += "ipython: {0}\n".format(IPython.__version__)
-
-
-    special_opts = ["remote_data", "pep8"]
-    opts = []
-    for op in special_opts:
-        if getattr(config.option, op, None):
-            opts.append(op)
-    if opts:
-        s += "Using Astropy options: {0}.\n".format(" ".join(opts))
-
-    if six.PY3 and (config.getini('doctest_rst') or config.option.doctest_rst):
-        s += "Running doctests in .rst files is not supported on Python 3.x\n"
-
-    if not six.PY3:
-        s = s.encode(stdoutencoding, 'replace')
-
-    return s
-
-
-import os
-import tardis
-import yaml
-
-from tardis.io.config_reader import Configuration
 
 @pytest.fixture
 def atomic_data_fname():
@@ -156,7 +76,6 @@ def atomic_data_fname():
     else:
         return os.path.expandvars(os.path.expanduser(atomic_data_fname))
 
-from tardis.atomic import AtomData
 
 @pytest.fixture
 def kurucz_atomic_data(atomic_data_fname):
@@ -174,7 +93,7 @@ def test_data_path():
 
 @pytest.fixture
 def included_he_atomic_data(test_data_path):
-    import os, tardis
+    import os
     atomic_db_fname = os.path.join(test_data_path, 'chianti_he_db.h5')
     return AtomData.from_hdf5(atomic_db_fname)
 
