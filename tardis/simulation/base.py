@@ -487,8 +487,11 @@ class Simulation(object):
         R_ph = self.runner.r_inner_cgs.min()
         ps   = ps * R_max
 
-        L_nu = montecarlo.c_source_integrate(L_nu, line_nu.as_matrix(), taus.as_matrix(), att_S_ul, 
-                    I_BB, nus, ps, r_shells.reshape(-1) * R_max, num_shell, R_ph)
+        #L_nu = montecarlo.c_source_integrate(
+        #        L_nu, line_nu.as_matrix(), taus.as_matrix(), att_S_ul,
+        #        I_BB, nus, ps, r_shells.reshape(-1) * R_max, num_shell, R_ph)
+
+        L_nu = montecarlo.formal_integral(self.runner, model, I_BB, 1000)
 
         if False:
             for nu_idx,nu in enumerate(nus.value):

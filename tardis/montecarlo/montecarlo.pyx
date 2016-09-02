@@ -91,12 +91,15 @@ cdef extern from "src/cmontecarlo.h":
         int_type_t virt_array_size
 
 
-cdef extern from "src/integrator.h":
     void montecarlo_main_loop(storage_model_t * storage, int_type_t virtual_packet_flag, int nthreads, unsigned long seed)
+
+cdef extern from "src/integrator.h":
     void debug_print_arg(double* arg, int len)
     void debug_print_2d_arg(double* arg, int len1, int len2)
-    void integrate_source_functions(double* L_nu, double* line_nu, double* taus, double* att_S_ul, double* I_BB, double* nus, 
+    void integrate_source_functions(double* L_nu, double* line_nu, double* taus, double* att_S_ul, double* I_BB, double* nus,
               double* ps, double* Rs, double R_ph, int_type_t* lens)
+    void _formal_integral(
+            storage_model_t *storage, double *I_BB, double *att_S_ul, int N, double *L)
 
 cdef initialize_storage_model(model, runner, storage_model_t *storage):
     """
@@ -298,11 +301,11 @@ def montecarlo_radial1d(model, runner, int_type_t virtual_packet_flag=0,
         runner.virt_packet_last_line_interaction_in_id = np.zeros(0)
         runner.virt_packet_last_line_interaction_out_id = np.zeros(0)
 
-def integrate(np.ndarray[float_t] L_nu,np.ndarray[float_t] line_nu, np.ndarray[float_t, ndim=2] taus, 
-              np.ndarray[float_t, ndim=2] att_S_ul, float R_max, float T, np.ndarray[float_t] nus, 
+def integrate(np.ndarray[float_t] L_nu,np.ndarray[float_t] line_nu, np.ndarray[float_t, ndim=2] taus,
+              np.ndarray[float_t, ndim=2] att_S_ul, float R_max, float T, np.ndarray[float_t] nus,
               np.ndarray[float_t] ps_outer, np.ndarray[float_t] ps_inner,
               np.ndarray[float_t, ndim=2] z_ct_outer, np.ndarray[float_t, ndim=2] z_ct_inner,
-              int num_shell, np.ndarray[int_type_t] n_shell_p_outer):   
+              int num_shell, np.ndarray[int_type_t] n_shell_p_outer):
 
     cdef int k, nu_idx, p_idx,  z_len
     cdef float nu_start, nu_end, p,
@@ -319,12 +322,12 @@ def integrate(np.ndarray[float_t] L_nu,np.ndarray[float_t] line_nu, np.ndarray[f
                                                                           # 1: avoids double counting center
             shell_idx = (num_shell-1) - np.arange(n_shell_p_outer[p_idx]) # -1 for 0-based indexing
             shell_idx = np.hstack((shell_idx,shell_idx[::-1][1:]))
-            
+
             z_len = len(z_cross_p)
             for idx,z_cross in enumerate(z_cross_p[0:z_len-1]):
                 if z_cross_p[idx+1] == 0:
                     continue
-                nu_start = nu * (1 - z_cross) 
+                nu_start = nu * (1 - z_cross)
                 nu_end   = nu * (1 - z_cross_p[idx+1])
                 shell = shell_idx[idx]
                 # Note the direction of the comparisons
@@ -348,7 +351,7 @@ def integrate(np.ndarray[float_t] L_nu,np.ndarray[float_t] line_nu, np.ndarray[f
             for idx,z_cross in enumerate(z_cross_p[0:z_len-1]):
                 if z_cross_p[idx+1] == 0:
                     continue
-                nu_start = nu * (1 - z_cross) 
+                nu_start = nu * (1 - z_cross)
                 nu_end   = nu * (1 - z_cross_p[idx+1])
                 shell = shell_idx[idx]
                 # Note the direction of the comparisons
@@ -376,19 +379,34 @@ def print_c_version(arg,twod):
     else:
         debug_print_arg(<double*> PyArray_DATA(arg), len(arg))
 
-def c_source_integrate(np.ndarray[float_t] L_nu, np.ndarray[float_t] line_nu, np.ndarray[float_t, ndim=2] taus, 
-              np.ndarray[float_t, ndim=2] att_S_ul, np.ndarray[float_t] I_BB, np.ndarray[float_t] nus,
-              np.ndarray[float_t] ps, np.ndarray[float_t] Rs, int num_shell, double R_ph):
-              
-    lens = np.array([0,0,0,0])
-    lens[0] = len(L_nu)
-    lens[1] = len(line_nu)
-    lens[2] = len(ps)
-    lens[3] = num_shell
+# def c_source_integrate(np.ndarray[float_t] L_nu, np.ndarray[float_t] line_nu, np.ndarray[float_t, ndim=2] taus,
+#               np.ndarray[float_t, ndim=2] att_S_ul, np.ndarray[float_t] I_BB, np.ndarray[float_t] nus,
+#               np.ndarray[float_t] ps, np.ndarray[float_t] Rs, int num_shell, double R_ph):
+#
+#     lens = np.array([0,0,0,0])
+#     lens[0] = len(L_nu)
+#     lens[1] = len(line_nu)
+#     lens[2] = len(ps)
+#     lens[3] = num_shell
+#
+#     integrate_source_functions(<double*> PyArray_DATA(L_nu), <double*> PyArray_DATA(line_nu), <double*> PyArray_DATA(taus),
+#             <double*> PyArray_DATA(att_S_ul), <double*> PyArray_DATA(I_BB), <double*> PyArray_DATA(nus), <double*> PyArray_DATA(ps),
+#             <double*> PyArray_DATA(Rs), <double>R_ph, <int_type_t*> PyArray_DATA(lens))
+#
+#     return L_nu
 
-    integrate_source_functions(<double*> PyArray_DATA(L_nu), <double*> PyArray_DATA(line_nu), <double*> PyArray_DATA(taus),
-            <double*> PyArray_DATA(att_S_ul), <double*> PyArray_DATA(I_BB), <double*> PyArray_DATA(nus), <double*> PyArray_DATA(ps), 
-            <double*> PyArray_DATA(Rs), <double>R_ph, <int_type_t*> PyArray_DATA(lens))
 
-    return L_nu
+def formal_integral(runner, model, I_BB, N):
+    cdef storage_model_t storage
 
+    initialize_storage_model(model, runner, &storage)
+
+    cdef double* pI_BB = <double*> PyArray_DATA(I_BB)
+    att_S_ul = runner.att_S_ul.flatten(order='F')
+    cdef double* patt_S_ul = <double*> PyArray_DATA(att_S_ul)
+
+    cdef np.ndarray[double, ndim=1] L = np.zeros(
+            runner.spectrum.frequency.shape, dtype=np.float64)
+
+    _formal_integral(&storage, pI_BB, patt_S_ul, N, <double*> PyArray_DATA(L))
+    return L

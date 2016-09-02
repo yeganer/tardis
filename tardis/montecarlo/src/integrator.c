@@ -1,8 +1,12 @@
+#define _USE_MATH_DEFINES
+
 #include <string.h>
 #include <assert.h>
 #include <stdio.h>
 #include <math.h>
+#include <stdlib.h>
 
+#include "storage.h"
 #include "integrator.h"
 
 #ifdef WITHOPENMP
@@ -14,101 +18,17 @@
 #define PLEN    2
 #define SHELLEN 3
 
-#define M_PI acos(-1.0)
 #define C_INV 3.33564e-11
+#define M_PI acos (-1)
 
-indexpair_t find_nu_limits_for_crossing_and_p(double nu, double p, int cr_idx, int no_of_cr_shells, double inv_t, const double* Rs, const double* line_nu, int len)
+double integrate_intensity(const double* I_nu, const double h, int N)
 {
-    double blu_R, red_R, z_blu, z_red, z_cr, nu_blu, nu_red;
-    indexpair_t pair;
-
-    if (no_of_cr_shells > 1)
+    double result = (I_nu[0] + I_nu[N-1])/2;
+    for (int idx = 1; idx < N-1; ++idx)
     {
-        assert(Rs[0] > Rs[1]); // Decreasing order
-        
-        blu_R = get_r(cr_idx-1,no_of_cr_shells,Rs);
-        red_R = get_r(cr_idx,no_of_cr_shells,Rs);
-        z_blu = sqrt( blu_R*blu_R - p*p );
-        z_red = sqrt( red_R*red_R - p*p );
-        nu_blu = nu * (1 + get_cr_sign(cr_idx,no_of_cr_shells)*z_blu*C_INV*inv_t);
-        nu_red = nu * (1 + get_cr_sign(cr_idx,no_of_cr_shells)*z_red*C_INV*inv_t);
+        result += I_nu[idx];
     }
-    else 
-    {
-        z_cr = sqrt( Rs[cr_idx]*Rs[cr_idx] - p*p );
-        nu_blu = nu * (1 - z_cr*C_INV*inv_t);
-        nu_red = nu * (1 + z_cr*C_INV*inv_t);
-    }
-
-    for (int idx = 0; idx < len; ++idx)
-    {
-        if (line_nu[idx] == nu_blu){
-            pair.start = idx;}
-        if (line_nu[idx] == nu_red){
-            pair.end = idx;}
-    }
-    
-    return pair;
-}
-
-double get_r(int cr_idx, int no_of_cr_shells, const double* Rs)
-{
-    return Rs[ get_sh_idx(cr_idx, no_of_cr_shells)];
-}
-
-int get_cr_sign(int cr_idx, const int no_of_cr_shells)
-{
-    if (cr_idx < no_of_cr_shells){
-        return -1;}
-    else if (cr_idx < 2*no_of_cr_shells){
-        return 1;}
-}
-
-int get_cr_start(int no_of_cr_shells, double p, double R_ph)
-{
-    if (p >= R_ph) {
-        return 0;}
-    else if (p < R_ph) {
-        return no_of_cr_shells;
-    }
-}
-
-int get_sh_idx(int cr_idx, int no_of_cr_shells)
-{
-    if (cr_idx < no_of_cr_shells){
-       return cr_idx;}
-    else if (cr_idx == 2*no_of_cr_shells-1){ // last crossing, used for indexing Rs
-        return 0;}
-    else if (cr_idx < 2*no_of_cr_shells-1){
-        return (2*(no_of_cr_shells-1) - cr_idx);}
-
-}
-int get_num_shell_cr(double p, const double* Rs, int len)
-{
-    assert(Rs[0] > Rs[1]);
-
-    int num;
-    for(num = 0; num < len; ++num)
-    {
-        if( p >= Rs[num]) {
-            break;}
-    }
-    return num;
-}
-
-
-double integrate_intensity(const double* I_nu, const double* ps, int len)
-{
-    double result = 0.0;
-    double h = (ps[0]-ps[len-1])/len;
-    result =  I_nu[0]*h*ps[0]/2.0;
-
-    for (int idx = 1; idx < len-1; ++idx)
-    {
-        result += I_nu[idx]*h*ps[idx];
-    }
-    result += I_nu[len-1]*h*ps[len-1]/2.0;
-    return result*8*M_PI*M_PI;
+    return result*h;
 }
 
 void debug_print_arg(double* arg,int len)
@@ -124,13 +44,15 @@ void debug_print_2d_arg(double* arg,int len1, int len2)
     {
         for(int64_t j = 0; j < len2; ++j)
         {
-        printf("[%d,%d,%d]: %.8f, ",i,j,i*len2+j,arg[i*len2+j]);
+        printf("[%ld,%ld,%ld]: %.8f, ",i,j,i*len2+j,arg[i*len2+j]);
         }
         printf("\n\n");
     }
 }
 
-void integrate_source_functions(double* L_nu, const double* line_nu, const double* taus, const double* att_S_ul, const double* I_BB, 
+/*
+
+void integrate_source_functions(double* L_nu, const double* line_nu, const double* taus, const double* att_S_ul, const double* I_BB,
         const double* nus, const double* ps, const double* Rs, double R_ph, const int64_t* lens)
 {
     double* I_nu  = calloc(lens[PLEN], sizeof(double));
@@ -142,10 +64,10 @@ void integrate_source_functions(double* L_nu, const double* line_nu, const doubl
         memset(I_nu,0.0, lens[PLEN] * sizeof(I_nu));
         for (int p_idx = 0; p_idx < lens[PLEN]; ++p_idx)
         {
-            if (ps[p_idx] < R_ph) 
+            if (ps[p_idx] < R_ph)
             {
                 I_nu[p_idx] = I_BB[nu_idx];
-            }           
+            }
             no_of_cr_shells = get_num_shell_cr(ps[p_idx],Rs,lens[SHELLEN]);
             printf("no_sh %d\n", no_of_cr_shells);
             printf("start %d, end %d\n", get_cr_start(no_of_cr_shells, ps[p_idx], R_ph),  2*no_of_cr_shells);
@@ -155,12 +77,164 @@ void integrate_source_functions(double* L_nu, const double* line_nu, const doubl
                 printf("Inner loop from %d to %d; ",nu_lims.start,nu_lims.end);
                 for (int k_idx = nu_lims.start; k_idx < nu_lims.end; ++k_idx)
                 {
-                    I_nu[p_idx] = I_nu[p_idx] * exp(-taus[k_idx * lens[SHELLEN] + get_sh_idx(cr_idx,no_of_cr_shells)]) 
+                    I_nu[p_idx] = I_nu[p_idx] * exp(-taus[k_idx * lens[SHELLEN] + get_sh_idx(cr_idx,no_of_cr_shells)])
                                     + att_S_ul[k_idx * lens[SHELLEN] + get_sh_idx(cr_idx,no_of_cr_shells)];
                 }
             }
         }
-        L_nu[nu_idx] = integrate_intensity(I_nu, ps, lens[PLEN]); 
+        //L_nu[nu_idx] = integrate_intensity(I_nu, ps, lens[PLEN]);
     }
     printf("\n\n");
 }
+*/
+
+static inline double
+calculate_z(double r, double p, double inv_t)
+{
+    return (r > p) ? sqrt(r * r - p * p) * C_INV * inv_t : 0;
+}
+
+
+void populate_z(const storage_model_t *storage, const double p, double *oz)
+{
+    //const double *radius = storage->r_outer;
+
+    // Abbreviations
+    double *r = storage->r_outer;
+    const int N = storage->no_of_shells;
+    double inv_t = storage->inverse_time_explosion;
+    double z = 0;
+
+    int i = 0, offset = -1, middle=N-1;
+
+    if (p <= storage->r_inner[0])
+    {
+        oz[0] = calculate_z(storage->r_inner[0], p, inv_t);
+        for(i = 0; i < N; ++i)
+        { // Loop from outside to inside
+            oz[i+1] = calculate_z(r[i], p, inv_t);
+        }
+    }
+    else
+    {
+        for(i = 0; i < N; ++i)
+        { // Loop from inside to outside
+            z = calculate_z(r[i], p, inv_t);
+            if (z==0)
+                continue;
+            if (offset == -1)
+            {
+                offset = i;
+                middle = N - i - 1;
+            }
+
+            oz[middle - (i - offset)] = -z;
+            oz[middle + (i - offset) + 1] = z;
+        }
+    }
+}
+
+
+void _formal_integral(
+        storage_model_t *storage, double *I_BB, double *att_S_ul, int N, double *L)
+{
+    // Initialization phase
+    double *I_nu  = calloc(N, sizeof(double));
+    double *z = calloc( 2 * storage->no_of_shells + 1, sizeof(double));
+    double  inv_t = storage->inverse_time_explosion;
+    int spectrum_length = (storage->spectrum_end_nu - storage->spectrum_start_nu)/storage->spectrum_delta_nu;
+
+    double R_ph = storage->r_inner[0];
+    double R_max = storage->r_outer[storage->no_of_shells - 1];
+    double p = 0, r = 0, nu_start, nu_end, nu, exp_factor;
+
+    int offset = 0, inner_shell_idx=0, i;
+
+    double *ptau, *patt_S_ul, *pline;
+
+    // Loop over wavelengths in spectrum
+    for (int nu_idx = 0; nu_idx < spectrum_length ; ++nu_idx)
+    {
+        nu = storage->spectrum_start_nu + nu_idx * storage->spectrum_delta_nu;
+
+        // Loop over discrete values along line
+        for (int p_idx = 0; p_idx < N; ++p_idx)
+        {
+            // calloc should be moved to initialization
+            // memset here instead
+            // z is an array with
+            memset(z, 0, (2 * storage->no_of_shells + 1) * sizeof(z));
+
+            // Maybe correct? At least this matches the BB
+            p = R_max/N * (p_idx + 0.5);
+
+            populate_z(storage, p, z);
+
+            // initialize I_nu
+            if (p <= R_ph)
+            //{
+                I_nu[p_idx] = I_BB[nu_idx];
+            else
+                I_nu[p_idx] = 0;
+
+            // TODO: Ugly loop
+            // Loop over all intersections
+
+            for (i = 0; i < 2*storage->no_of_shells + 1; ++i)
+            {
+                if (z[i] == 0)
+                    break;
+                nu_start = nu * ( 1 - z[i]);
+                nu_end = nu * ( 1 - z[i+1]);
+
+                // Calculate offset properly
+                // Which shell is important for photosphere?
+                // This is might be right
+
+                if (i < storage->no_of_shells)
+                    offset = (storage->no_of_shells - i - 1) * storage->no_of_lines;
+                else if (i == storage->no_of_shells)
+                    offset = 0;
+                else
+                    offset = (i - storage->no_of_shells - 1) * storage->no_of_lines;
+
+                for (
+                        pline = storage->line_list_nu,
+                        ptau = &storage->line_lists_tau_sobolevs[offset],
+                        patt_S_ul = &att_S_ul[offset];
+                        pline < storage->line_list_nu + storage->no_of_lines;
+                        ++pline,
+                        ++ptau,
+                        ++patt_S_ul)
+
+                {
+                    if (*pline > nu_start)
+                        continue;
+                    if (*pline < nu_end)
+                        break;
+                    exp_factor = exp(- (*ptau) );
+                    I_nu[p_idx] = I_nu[p_idx] * exp_factor + *patt_S_ul;
+                }
+            }
+            I_nu[p_idx] *= p;
+        }
+        L[nu_idx] = 8 * M_PI * M_PI * integrate_intensity(I_nu, R_max/N, N);
+    }
+    free(z);
+    free(I_nu);
+    printf("\n\n");
+}
+
+/*
+
+double
+recursive_update_luminosity (double nu_start, double nu_end, double *line_nu, double *tau, double *att_S_ul, double initial)
+{
+    if (nu_start > nu_line[0])
+    {
+        return initial
+    }
+    else if (nu_end < nu_line
+        return recursive_update_luminosity(
+                nu_start, nu_end, line_nu - 1, line
+                */
