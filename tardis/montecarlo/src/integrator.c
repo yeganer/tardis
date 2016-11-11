@@ -186,14 +186,15 @@ void _formal_integral(
             nu = storage->spectrum_start_nu + nu_idx * storage->spectrum_delta_nu;
 
             // Loop over discrete values along line
-            for (int p_idx = 0; p_idx < N; ++p_idx)
+            for (int p_idx = 1; p_idx < N; ++p_idx)
             {
                 // TODO: precompute these and save as 2D array
                 memset(z, 0, size_z * sizeof(*z));
                 memset(shell_id, 0, size_z * sizeof(*shell_id));
 
                 // Maybe correct? At least this matches the BB *exacly*
-                p = R_max/N * (p_idx + 0.5);
+                // Trapezoid integration points
+                p = R_max/(N -1) * (p_idx);
 
                 populate_z(storage, p, z, shell_id);
 
